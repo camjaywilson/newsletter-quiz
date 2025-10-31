@@ -287,11 +287,13 @@
                 <h2>${currentQuestion.question}</h2>
                 <div class="options">`;
             
+            // Calculate total votes
+            const totalVotes = results ? Object.values(results).reduce((a, b) => a + b, 0) : 0;
+            
             currentQuestion.options.forEach(option => {
                 const isCorrect = option.correct;
                 const isSelected = selectedAnswer === option.id;
                 const voteCount = results ? (results[option.id] || 0) : 0;
-                const totalVotes = results ? Object.values(results).reduce((a, b) => a + b, 0) : 0;
                 const percentage = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
                 
                 let optionClass = 'option';
@@ -304,7 +306,7 @@
                     <div class="${optionClass}" onclick="selectOption('${option.id}')" data-option="${option.id}">
                         <span class="option-text">${option.text}</span>
                         <div class="option-stats ${hasVoted ? 'show' : ''}">
-                            <span class="vote-count">${voteCount} votes</span>
+                            <span class="vote-count">${percentage}%</span>
                             <div class="percentage-bar">
                                 <div class="percentage-fill" style="width: ${percentage}%"></div>
                             </div>
@@ -317,11 +319,10 @@
             html += `</div></div>`;
             
             if (hasVoted) {
-                const totalVotes = results ? Object.values(results).reduce((a, b) => a + b, 0) : 0;
                 html = `<div class="thank-you">
                     <h3>Thanks for participating! 🎉</h3>
                     <p>Here's how everyone answered:</p>
-                </div>` + html + `<div class="total-votes">Total votes: ${totalVotes}</div>`;
+                </div>` + html;
             }
             
             quizContent.innerHTML = html;
