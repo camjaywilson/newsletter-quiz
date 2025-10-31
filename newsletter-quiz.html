@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Newsletter Quiz</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        .quiz-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .quiz-header h1 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .quiz-header p {
+            color: #666;
+            font-size: 16px;
+        }
+
+        .question {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+        }
+
+        .question h2 {
+            color: #333;
+            font-size: 20px;
+            margin-bottom: 20px;
+            line-height: 1.4;
+        }
+
+        .options {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .option {
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 15px 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .option:hover {
+            border-color: #667eea;
+            transform: translateX(5px);
+        }
+
+        .option.selected {
+            background: #f0f4ff;
+            border-color: #667eea;
+        }
+
+        .option.correct {
+            background: #d4edda;
+            border-color: #28a745;
+        }
+
+        .option.incorrect {
+            background: #f8d7da;
+            border-color: #dc3545;
+        }
+
+        .option-text {
+            flex: 1;
+            color: #333;
+            font-size: 16px;
+        }
+
+        .option-stats {
+            display: none;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .option-stats.show {
+            display: flex;
+        }
+
+        .vote-count {
+            color: #666;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .percentage-bar {
+            width: 80px;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .percentage-fill {
+            height: 100%;
+            background: #667eea;
+            transition: width 0.5s ease;
+        }
+
+        .correct-badge {
+            display: none;
+            background: #28a745;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .correct-badge.show {
+            display: inline-block;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .thank-you {
+            text-align: center;
+            padding: 20px;
+            background: #d4edda;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .thank-you h3 {
+            color: #155724;
+            margin-bottom: 5px;
+        }
+
+        .thank-you p {
+            color: #155724;
+        }
+
+        .total-votes {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            margin-top: 20px;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .option-stats.show {
+            animation: fadeIn 0.4s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="quiz-header">
+            <h1>📊 Newsletter Quiz</h1>
+            <p>Test your knowledge and see how others answered!</p>
+        </div>
+
+        <div id="quizContent"></div>
+    </div>
+
+    <script>
+        // Configuration
+        const CONFIG = {
+            apiUrl: 'https://script.google.com/macros/s/AKfycbxxNCepOnKbwadh5YePv6M32prlLQtqD1nhhaOVVecHy5cWgcjuB-NqvFH4O1tGjqDk/exec'
+        };
+
+        let hasVoted = false;
+        let selectedAnswer = null;
+        let currentQuestion = null;
+
+        // Check if user came from newsletter link with pre-selected answer
+        function getUrlParameter(name) {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get(name);
+        }
+
+        // Initialize quiz
+        async function initQuiz() {
+            const quizContent = document.getElementById('quizContent');
+            const preselectedAnswer = getUrlParameter('answer');
+            const questionId = getUrlParameter('q') || 'current'; // Default to 'current' for latest question
+            
+            try {
+                quizContent.innerHTML = '<div class="loading">Loading quiz...</div>';
+                
+                const fetchUrl = `${CONFIG.apiUrl}?action=getQuestion&questionId=${questionId}`;
+                console.log('Fetching from:', fetchUrl);
+                
+                // Fetch the question from Google Sheets
+                const questionResponse = await fetch(fetchUrl);
+                console.log('Response status:', questionResponse.status);
+                console.log('Response ok:', questionResponse.ok);
+                
+                if (!questionResponse.ok) {
+                    throw new Error(`HTTP error! status: ${questionResponse.status}`);
+                }
+                
+                const responseText = await questionResponse.text();
+                console.log('Response text:', responseText);
+                
+                currentQuestion = JSON.parse(responseText);
+                console.log('Parsed question:', currentQuestion);
+                
+                if (currentQuestion.error) {
+                    throw new Error(currentQuestion.error);
+                }
+                
+                if (preselectedAnswer) {
+                    // User clicked from newsletter
+                    selectedAnswer = preselectedAnswer;
+                    await submitVote(preselectedAnswer);
+                } else {
+                    // User is viewing quiz fresh
+                    renderQuiz();
+                }
+            } catch (error) {
+                console.error('Error loading quiz:', error);
+                console.error('Error details:', error.message);
+                quizContent.innerHTML = `
+                    <div class="error">
+                        <strong>Oops!</strong> Could not load the quiz.<br>
+                        <small>Error: ${error.message}</small><br>
+                        <small>Check the browser console (F12) for more details.</small>
+                    </div>
+                `;
+            }
+        }
+
+        // Render the quiz options
+        function renderQuiz(results = null) {
+            const quizContent = document.getElementById('quizContent');
+            
+            if (!currentQuestion) {
+                quizContent.innerHTML = '<div class="error">No question loaded</div>';
+                return;
+            }
+            
+            let html = `<div class="question">
+                <h2>${currentQuestion.question}</h2>
+                <div class="options">`;
+            
+            currentQuestion.options.forEach(option => {
+                const isCorrect = option.correct;
+                const isSelected = selectedAnswer === option.id;
+                const voteCount = results ? (results[option.id] || 0) : 0;
+                const totalVotes = results ? Object.values(results).reduce((a, b) => a + b, 0) : 0;
+                const percentage = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
+                
+                let optionClass = 'option';
+                if (hasVoted) {
+                    if (isCorrect) optionClass += ' correct';
+                    else if (isSelected) optionClass += ' incorrect';
+                }
+                
+                html += `
+                    <div class="${optionClass}" onclick="selectOption('${option.id}')" data-option="${option.id}">
+                        <span class="option-text">${option.text}</span>
+                        <div class="option-stats ${hasVoted ? 'show' : ''}">
+                            <span class="vote-count">${voteCount} votes</span>
+                            <div class="percentage-bar">
+                                <div class="percentage-fill" style="width: ${percentage}%"></div>
+                            </div>
+                            <span class="correct-badge ${isCorrect ? 'show' : ''}">✓ Correct</span>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += `</div></div>`;
+            
+            if (hasVoted) {
+                const totalVotes = results ? Object.values(results).reduce((a, b) => a + b, 0) : 0;
+                html = `<div class="thank-you">
+                    <h3>Thanks for participating! 🎉</h3>
+                    <p>Here's how everyone answered:</p>
+                </div>` + html + `<div class="total-votes">Total votes: ${totalVotes}</div>`;
+            }
+            
+            quizContent.innerHTML = html;
+        }
+
+        // Handle option selection
+        async function selectOption(optionId) {
+            if (hasVoted) return; // Prevent multiple votes
+            
+            selectedAnswer = optionId;
+            await submitVote(optionId);
+        }
+
+        // Submit vote to Google Sheets
+        async function submitVote(optionId) {
+            const quizContent = document.getElementById('quizContent');
+            
+            try {
+                quizContent.innerHTML = '<div class="loading">Submitting your answer...</div>';
+                
+                // Submit vote
+                const submitResponse = await fetch(CONFIG.apiUrl, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: 'vote',
+                        questionId: currentQuestion.id,
+                        answer: optionId
+                    })
+                });
+                
+                // Get updated results
+                await new Promise(resolve => setTimeout(resolve, 1000)); // Brief delay to ensure vote is recorded
+                const resultsResponse = await fetch(`${CONFIG.apiUrl}?action=results&questionId=${currentQuestion.id}`);
+                const results = await resultsResponse.json();
+                
+                hasVoted = true;
+                renderQuiz(results);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                quizContent.innerHTML = `
+                    <div class="error">
+                        <strong>Oops!</strong> There was an error submitting your vote. Please try again.
+                    </div>
+                `;
+                setTimeout(() => renderQuiz(), 2000);
+            }
+        }
+
+        // Initialize on page load
+        initQuiz();
+    </script>
+</body>
+</html>
